@@ -1,0 +1,1131 @@
+\documentclass[12pt,letterpaper]{article}
+
+% ── Paquetes ──────────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{parskip}
+
+\geometry{margin=2.5cm}
+
+% ── Colores y estilo de código ────────────────────────────────────────────────
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codeframe}{RGB}{200,200,200}
+\definecolor{kwcolor}{RGB}{0,0,180}
+\definecolor{strcolor}{RGB}{163,21,21}
+\definecolor{cmtcolor}{RGB}{0,128,0}
+\definecolor{numcolor}{RGB}{9,134,88}
+
+\lstdefinestyle{python}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kwcolor}\bfseries,
+  stringstyle=\color{strcolor},
+  commentstyle=\color{cmtcolor}\itshape,
+  numberstyle=\tiny\color{numcolor},
+  numbers=left,
+  numbersep=8pt,
+  breaklines=true,
+  breakatwhitespace=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+}
+
+% ── Encabezado y pie ──────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small C\'alculo Estoc\'astico para Finanzas}
+\lhead{\small Universidad Panamericana}
+\cfoot{\thepage}
+
+% ── Teoremas ──────────────────────────────────────────────────────────────────
+\newtheorem{theorem}{Teorema}[section]
+\newtheorem{proposition}[theorem]{Proposici\'on}
+\newtheorem{definition}{Definici\'on}[section]
+\newtheorem{remark}{Observaci\'on}[section]
+
+% ── Título ────────────────────────────────────────────────────────────────────
+\title{
+  \LARGE\bfseries C\'alculo Estoc\'astico para Finanzas\\[0.5em]
+  \large Compendio Completo: Laboratorios, Tarea, Proyecto y Ejercicios
+}
+\author{
+  Mauricio Olivares\\[0.3em]
+  \small Profesor: Dr.\ Julio C\'esar Galindo\\
+  \small Universidad Panamericana
+}
+\date{Verano 2026}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\maketitle
+\thispagestyle{empty}
+
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+\part{Laboratorios}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\section{Laboratorio 1: Estimaci\'on de un Movimiento Browniano Geom\'etrico}
+
+\subsection{Marco te\'orico}
+
+El \textbf{Movimiento Browniano Geom\'etrico (GBM)} es el modelo est\'andar para la
+evoluci\'on del precio de un activo financiero. La ecuaci\'on diferencial estoc\'astica es:
+
+\begin{equation}
+  dS_t = \mu S_t \, dt + \sigma S_t \, dB_t
+\end{equation}
+
+cuya soluci\'on expl\'icita, obtenida mediante la F\'ormula de It\^o, es:
+
+\begin{equation}
+  S_t = S_0 \exp\!\left[\left(\mu - \frac{\sigma^2}{2}\right)t + \sigma B_t\right]
+\end{equation}
+
+Los par\'ametros se calibran a partir de log-retornos diarios
+$r_t = \ln(S_t / S_{t-1})$:
+
+\begin{align}
+  \hat{\mu}    &= 252 \cdot \bar{r} + \tfrac{1}{2}(252 \cdot s^2) \\
+  \hat{\sigma} &= \sqrt{252} \cdot s
+\end{align}
+
+donde $s$ es la desviaci\'on est\'andar muestral de los log-retornos diarios.
+
+\subsection{Objetivos}
+\begin{enumerate}
+  \item Descargar precios ajustados de AAPL (2020--2023).
+  \item Estimar $\mu_b$ y $\sigma_b$ con log-retornos hist\'oricos.
+  \item Simular 100 trayectorias GBM y comparar con el precio hist\'orico real.
+  \item Graficar bandas de percentiles (5\textdegree, 50\textdegree, 95\textdegree).
+\end{enumerate}
+
+\subsection{C\'odigo}
+
+\begin{lstlisting}[style=python, caption={Laboratorio 1 -- GBM con AAPL}]
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+ticker_symbol = 'AAPL'
+df = yf.download(ticker_symbol, start='2020-01-01',
+                 end='2023-12-31', progress=False)
+if isinstance(df.columns, pd.MultiIndex):
+    df.columns = df.columns.droplevel(1)
+price_col = 'Adj Close' if 'Adj Close' in df.columns else 'Close'
+df[price_col] = pd.to_numeric(df[price_col], errors='coerce')
+df = df.dropna(subset=[price_col])
+
+df['Log_Return'] = np.log(df[price_col]).diff()
+df = df.dropna(subset=['Log_Return'])
+
+mb = df['Log_Return'].mean()
+sb = df['Log_Return'].std()
+
+N       = 252
+mu_b    = N * mb + 0.5 * (N * sb**2)
+sigma_b = np.sqrt(N) * sb
+print(f"Mu_b    = {mu_b:.6f}")
+print(f"Sigma_b = {sigma_b:.6f}")
+
+S0              = df[price_col].iloc[-1]
+num_steps       = len(df)
+num_simulations = 100
+dt              = 1.0
+daily_drift     = (mu_b - 0.5 * sigma_b**2) / N
+daily_diffusion = sigma_b / np.sqrt(N)
+
+simulated_paths = np.zeros((num_steps, num_simulations))
+simulated_paths[0] = S0
+np.random.seed(42)
+for t in range(1, num_steps):
+    Z = np.random.normal(0, 1, num_simulations)
+    simulated_paths[t] = (simulated_paths[t-1]
+        * np.exp(daily_drift*dt + daily_diffusion*np.sqrt(dt)*Z))
+
+lower = np.percentile(simulated_paths, 5,  axis=1)
+med   = np.percentile(simulated_paths, 50, axis=1)
+upper = np.percentile(simulated_paths, 95, axis=1)
+
+fig, ax = plt.subplots(figsize=(14, 6))
+ax.plot(df.index, df[price_col], color='blue', lw=2,
+        label='Historico real (AAPL)')
+for i in range(min(20, num_simulations)):
+    ax.plot(df.index, simulated_paths[:, i], color='gray', alpha=0.15)
+ax.plot(df.index, med,   color='red',   ls='--', label='Percentil 50')
+ax.plot(df.index, lower, color='green', ls=':',  label='Bandas 5-95')
+ax.plot(df.index, upper, color='green', ls=':')
+ax.set_title('AAPL vs. Simulaciones GBM', fontsize=14)
+ax.set_xlabel('Fecha'); ax.set_ylabel('Precio (USD)')
+ax.legend(); ax.grid(True, ls='--', alpha=0.6)
+plt.tight_layout(); plt.show()
+\end{lstlisting}
+
+\subsection{Conclusiones}
+
+El GBM ofrece una aproximaci\'on razonable de la tendencia y rango general de
+movimiento de precios, pero presenta limitaciones importantes:
+
+\begin{enumerate}
+  \item \textbf{Volatilidad no constante (\textit{volatility clustering}):} los
+    mercados exhiben periodos de calma seguidos de estallidos de alta volatilidad,
+    incompatibles con $\sigma$ constante.
+  \item \textbf{Colas pesadas:} los log-retornos reales tienen colas m\'as gruesas
+    que una normal; el GBM subestima la probabilidad de eventos extremos.
+  \item \textbf{Saltos discontinuos:} noticias y eventos geopo\'iticos producen
+    saltos que el GBM no puede modelar.
+  \item \textbf{Deriva constante:} el retorno esperado real cambia con el tiempo
+    seg\'un fundamentos econ\'omicos.
+\end{enumerate}
+
+Modelos m\'as avanzados: volatilidad estoc\'astica (Heston), saltos-difusi\'on
+(Merton), GARCH.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Laboratorio 2: Volatilidad Realizada y Ventanas M\'oviles}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Marco te\'orico}
+
+La \textbf{volatilidad realizada anualizada} con ventana m\'ovil de $w$ d\'ias:
+
+\begin{equation}
+  \hat{\sigma}_t^{(w)} = \sqrt{252} \cdot
+    \operatorname{std}\!\left\{r_{t-w+1}, \ldots, r_t\right\}
+\end{equation}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}cll@{}}
+\toprule
+Ventana & Equivalencia & Interpretaci\'on \\
+\midrule
+21 d\'ias  & 1 mes burs\'atil    & Alta sensibilidad, mucho ruido \\
+63 d\'ias  & 1 trimestre       & Balance sensibilidad/suavizado \\
+126 d\'ias & 1 semestre        & Visi\'on estructural, efecto rezago \\
+\bottomrule
+\end{tabular}
+\caption{Ventanas m\'oviles analizadas.}
+\end{table}
+
+\textbf{Volatility Clustering} (Mandelbrot; Engle, Premio Nobel -- modelos ARCH):
+grandes cambios en precios son seguidos por grandes cambios, y peque\~nos por peque\~nos.
+
+\subsection{C\'odigo}
+
+\begin{lstlisting}[style=python, caption={Laboratorio 2 -- Volatilidad realizada}]
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+sns.set_theme(style='whitegrid')
+
+ticker = 'SPY'
+datos  = yf.download(ticker, start='2014-01-01',
+                     end='2024-01-01', progress=False)
+if isinstance(datos.columns, pd.MultiIndex):
+    datos.columns = datos.columns.droplevel(1)
+
+precios = datos['Close'].copy()
+log_ret = np.log(precios / precios.shift(1)).dropna()
+
+ventanas = [21, 63, 126]
+df_vol   = pd.DataFrame(index=log_ret.index)
+for v in ventanas:
+    df_vol[f'Vol_{v}d'] = log_ret.rolling(window=v).std() * np.sqrt(252)
+
+fig, ax = plt.subplots(figsize=(15, 7))
+ax.plot(df_vol['Vol_21d']  * 100, label='21d (corto)',
+        color='#e74c3c', alpha=0.6, lw=1.2)
+ax.plot(df_vol['Vol_63d']  * 100, label='63d (medio)',
+        color='#3498db', alpha=0.8, lw=1.8)
+ax.plot(df_vol['Vol_126d'] * 100, label='126d (largo)',
+        color='#2c3e50', alpha=0.9, lw=2.5)
+ax.axvspan(pd.to_datetime('2020-03-01'), pd.to_datetime('2020-06-01'),
+           color='red', alpha=0.12)
+ax.axvspan(pd.to_datetime('2022-01-01'), pd.to_datetime('2022-12-31'),
+           color='orange', alpha=0.10)
+ax.set_title(f'Volatilidad Realizada Anualizada -- {ticker}', fontsize=14)
+ax.set_xlabel('Fecha'); ax.set_ylabel('Volatilidad (%)')
+ax.legend(); ax.grid(True, ls='--', alpha=0.6)
+plt.tight_layout(); plt.show()
+\end{lstlisting}
+
+\subsection{Conclusiones}
+
+\begin{enumerate}
+  \item \textbf{Reg\'imenes de mercado:} COVID-19 (mar--may 2020) llev\'o la ventana
+    de 21 d\'ias por encima del 60\,\%; el ciclo de alzas de la Fed (2022) estableci\'o
+    una meseta sostenida del 25--30\,\%.
+  \item \textbf{Volatility clustering validado:} los picos forman bloques
+    temporales extendidos, no eventos aislados.
+  \item El supuesto de $\sigma$ constante del GBM b\'asico queda invalidado
+    emp\'iricamente.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Laboratorio 3: Valuaci\'on Monte Carlo de una Opci\'on Europea}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Marco te\'orico}
+
+Bajo la medida neutral al riesgo $\mathbb{Q}$:
+
+\begin{equation}
+  C_0 = e^{-rT}\,\mathbb{E}^\mathbb{Q}[(S_T - K)^+]
+\end{equation}
+
+El m\'etodo Monte Carlo simula $N$ precios terminales:
+
+\begin{equation}
+  S_T^{(i)} = S_0 \exp\!\left[\left(r - \frac{\sigma^2}{2}\right)T
+    + \sigma\sqrt{T}\,Z^{(i)}\right], \quad Z^{(i)} \sim \mathcal{N}(0,1)
+\end{equation}
+
+El estimador y su error est\'andar:
+
+\begin{equation}
+  \hat{C}_0 = \frac{e^{-rT}}{N}\sum_{i=1}^N (S_T^{(i)} - K)^+,
+  \qquad
+  \mathrm{SE} = \frac{e^{-rT}\,s}{\sqrt{N}}
+\end{equation}
+
+El benchmark anal\'itico es \textbf{Black-Scholes}:
+
+\begin{align}
+  C_0^{\mathrm{BS}} &= S_0\,\mathcal{N}(d_1) - Ke^{-rT}\,\mathcal{N}(d_2) \\
+  d_1 &= \frac{\ln(S_0/K) + (r + \sigma^2/2)T}{\sigma\sqrt{T}}, \quad
+  d_2 = d_1 - \sigma\sqrt{T}
+\end{align}
+
+\subsection{C\'odigo}
+
+\begin{lstlisting}[style=python, caption={Laboratorio 3 -- Monte Carlo europeo}]
+import numpy as np
+import pandas as pd
+from scipy.stats import norm
+import datetime
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+ticker = 'SPY'
+start  = (datetime.date.today()-datetime.timedelta(days=365*2)).strftime('%Y-%m-%d')
+end    = datetime.date.today().strftime('%Y-%m-%d')
+data   = yf.download(ticker, start=start, end=end, progress=False)
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.droplevel(1)
+S0      = data['Close'].iloc[-1].item()
+lr      = np.log(data['Close']/data['Close'].shift(1)).dropna()
+sigma_b = lr.std().item() * np.sqrt(252)
+
+K               = S0 * 1.05
+T               = 1.0
+r               = 0.03
+num_simulations = 100000
+
+Z       = np.random.standard_normal(num_simulations)
+ST      = S0 * np.exp((r - 0.5*sigma_b**2)*T + sigma_b*np.sqrt(T)*Z)
+payoffs = np.maximum(ST - K, 0)
+
+mc_price = np.exp(-r*T) * np.mean(payoffs)
+se       = np.std(payoffs)/np.sqrt(num_simulations) * np.exp(-r*T)
+ci_low   = mc_price - 1.96*se
+ci_high  = mc_price + 1.96*se
+
+d1 = (np.log(S0/K)+(r+0.5*sigma_b**2)*T)/(sigma_b*np.sqrt(T))
+d2 = d1 - sigma_b*np.sqrt(T)
+bs_price = S0*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
+
+print(f"MC Price : {mc_price:.4f}  SE: {se:.6f}")
+print(f"IC 95%   : [{ci_low:.4f}, {ci_high:.4f}]")
+print(f"BS Price : {bs_price:.4f}  Diff: {mc_price-bs_price:.6f}")
+\end{lstlisting}
+
+\subsection{Conclusiones}
+
+\begin{itemize}
+  \item El precio MC converge al precio Black-Scholes; la diferencia tiende a
+    cero con $N \to \infty$ (convergencia del TCL).
+  \item El error est\'andar decrece en proporci\'on a $1/\sqrt{N}$.
+  \item Monte Carlo es valioso para opciones ex\'oticas sin soluci\'on anal\'itica
+    cerrada.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Laboratorio 4: Opci\'on Americana con Longstaff--Schwartz}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Marco te\'orico}
+
+Una opci\'on americana satisface el problema de \textbf{paro \'optimo}:
+
+\begin{equation}
+  V^{Am}(t, s) = \sup_{\tau \in \mathcal{T}_{t,T}}
+    \mathbb{E}^\mathbb{Q}\!\left[e^{-r(\tau-t)} g(S_\tau) \,\Big|\, S_t = s\right]
+\end{equation}
+
+Como la europea corresponde a $\tau = T$, se tiene $V^{Am} \geq V^{Eu}$.
+La desigualdad puede ser estricta para puts: ejercer anticipadamente recibe $K$
+reinvertible a tasa $r$.
+
+\textbf{Algoritmo de Longstaff--Schwartz (LSM):} regresi\'on hacia atr\'as desde $T$.
+En cada paso se estima el valor de continuaci\'on mediante regresi\'on polinomial
+sobre las trayectorias in-the-money:
+
+\begin{equation}
+  \hat{C}(S_t) = \sum_{k} \alpha_k L_k(S_t)
+\end{equation}
+
+Se ejerce cuando $g(S_t) > \hat{C}(S_t)$.
+
+\subsection{C\'odigo}
+
+\begin{lstlisting}[style=python, caption={Laboratorio 4 -- Longstaff-Schwartz}]
+import numpy as np
+import pandas as pd
+from scipy.stats import norm
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+TICKER = 'SPY'
+data   = yf.download(TICKER, start='2023-01-01',
+                     end='2024-01-01', progress=False)
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.droplevel(1)
+S0      = data['Close'].iloc[-1].item()
+lr      = np.log(data['Close']/data['Close'].shift(1))
+sigma_b = lr.std().item() * np.sqrt(252)
+
+K, T, r   = S0*0.95, 1.0, 0.05
+num_paths = 10000
+num_steps = 100
+dt        = T / num_steps
+
+np.random.seed(42)
+paths    = np.zeros((num_steps+1, num_paths))
+paths[0] = S0
+for t in range(1, num_steps+1):
+    Z        = np.random.normal(0, 1, num_paths)
+    paths[t] = paths[t-1] * np.exp(
+        (r - 0.5*sigma_b**2)*dt + sigma_b*np.sqrt(dt)*Z)
+
+cash_flow     = np.maximum(K - paths[-1], 0)
+exercise_time = np.full(num_paths, num_steps)
+
+for t in range(num_steps-1, 0, -1):
+    itm   = np.where(K - paths[t] > 0)[0]
+    if len(itm) == 0: continue
+    S_itm = paths[t][itm]
+    y     = cash_flow[itm] * np.exp(-r*dt*(exercise_time[itm]-t))
+    coef  = np.polyfit(S_itm, y, 2)
+    cont  = np.polyval(coef, S_itm)
+    iv    = np.maximum(K - S_itm, 0)
+    ex    = itm[iv > cont]
+    cash_flow[ex]     = iv[iv > cont]
+    exercise_time[ex] = t
+
+american_price = np.mean(cash_flow * np.exp(-r*dt*exercise_time))
+
+d1 = (np.log(S0/K)+(r+0.5*sigma_b**2)*T)/(sigma_b*np.sqrt(T))
+d2 = d1 - sigma_b*np.sqrt(T)
+european_price = K*np.exp(-r*T)*norm.cdf(-d2) - S0*norm.cdf(-d1)
+
+print(f"Put Americana (LSM) : {american_price:.4f}")
+print(f"Put Europea   (BS)  : {european_price:.4f}")
+print(f"Prima Americanidad  : {american_price-european_price:.4f}")
+\end{lstlisting}
+
+\subsection{Conclusiones}
+
+\begin{itemize}
+  \item La \textbf{prima de americanidad} cuantifica el valor de la flexibilidad
+    de ejercicio temprano.
+  \item Para calls sin dividendos la prima es cero (\'optimo no ejercer antes).
+  \item LSM converge con $N \geq 10{,}000$ trayectorias y grado polinomial
+    $\geq 2$; es el est\'andar en la industria.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Laboratorio 5: Opci\'on Parisina y Reloj de Barrera}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Marco te\'orico}
+
+Una \textbf{opci\'on parisina down-and-out} se desactiva si el precio permanece
+\emph{consecutivamente} por debajo de la barrera $H$ durante $D$ d\'ias.
+
+El espacio de estados requiere el reloj de barrera $C_t$:
+
+\begin{equation}
+  V = V(t,\, S_t,\, C_t)
+\end{equation}
+
+La EDP incluye el t\'ermino $\partial V/\partial C$ cuando $S_t < H$:
+
+\begin{equation}
+  V_t + rS\,V_S + \tfrac{1}{2}\sigma^2 S^2 V_{SS}
+    + \mathbf{1}_{\{S < H\}}\,V_C - rV = 0
+\end{equation}
+
+\textbf{Sensibilidades:}
+\begin{itemize}
+  \item $D \uparrow$ $\Rightarrow$ menor prob.\ de knock-out $\Rightarrow$
+    precio sube (converge al europeo puro cuando $D \to \infty$).
+  \item $H \uparrow$ $\Rightarrow$ mayor prob.\ de knock-out $\Rightarrow$
+    precio baja.
+\end{itemize}
+
+\subsection{C\'odigo}
+
+\begin{lstlisting}[style=python, caption={Laboratorio 5 -- Opcion parisina}]
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+ticker  = 'SPY'
+data    = yf.download(ticker, start='2020-01-01',
+                      end='2023-01-01', progress=False)
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.droplevel(1)
+S0      = data['Close'].iloc[-1].item()
+lr      = np.log(data['Close']/data['Close'].shift(1)).dropna()
+sigma_b = lr.std().item() * np.sqrt(252)
+
+K, T, r         = S0*0.95, 1.0, 0.02
+num_simulations = 100000
+num_steps       = 252
+dt              = T / num_steps
+H               = S0 * 0.90
+D_values        = [5, 10, 20, 30]
+
+np.random.seed(42)
+paths       = np.zeros((num_simulations, num_steps+1))
+paths[:, 0] = S0
+Z_all       = np.random.normal(0, 1, (num_simulations, num_steps))
+for t in range(num_steps):
+    paths[:, t+1] = paths[:, t] * np.exp(
+        (r - 0.5*sigma_b**2)*dt + sigma_b*np.sqrt(dt)*Z_all[:, t])
+
+def parisian_price(K, T, r, H, D_val, paths):
+    n_sim   = paths.shape[0]
+    payoffs = np.zeros(n_sim)
+    for i in range(n_sim):
+        path   = paths[i]
+        ko     = False
+        consec = 0
+        for t in range(1, len(path)):
+            if path[t] < H:
+                consec += 1
+                if consec >= D_val: ko = True; break
+            else:
+                consec = 0
+        if not ko:
+            payoffs[i] = max(0, K - path[-1])
+    price = np.mean(payoffs) * np.exp(-r*T)
+    se    = np.std(payoffs)/np.sqrt(n_sim) * np.exp(-r*T)
+    return price, se
+
+prices, errors = [], []
+for D in D_values:
+    p, e = parisian_price(K, T, r, H, D, paths)
+    prices.append(p); errors.append(e)
+    print(f"D={D:2d} dias -> Precio: {p:.4f}  SE: {e:.4f}")
+
+fig, ax = plt.subplots(figsize=(9, 5))
+ax.errorbar(D_values, prices, yerr=errors, fmt='-o', capsize=5,
+            color='steelblue', ecolor='lightcoral', markerfacecolor='navy')
+ax.set_title('Precio Parisino vs. Duracion D del Reloj', fontsize=13)
+ax.set_xlabel('D (dias consecutivos bajo H)')
+ax.set_ylabel('Precio de la Opcion')
+ax.grid(True, ls='--', alpha=0.7)
+plt.tight_layout(); plt.show()
+\end{lstlisting}
+
+\subsection{Conclusiones}
+
+\begin{itemize}
+  \item La \emph{memoria temporal} distingue a la opci\'on parisina de la barrera
+    est\'andar.
+  \item El espacio de estados debe ampliarse a $(t, S_t, C_t)$; sin $C_t$, dos
+    estados financieramente distintos ser\'ian indistinguibles.
+  \item Las opciones parisinas modelan escenarios donde la activaci\'on requiere
+    confirmaci\'on sostenida (p.ej., regulaciones con umbral mantenido varios d\'ias).
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\part{Tarea: Procesos de Poisson, Cadenas de Markov y Martingalas Discretas}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\section{Procesos de Poisson}
+
+\begin{definition}
+Un \textbf{proceso de Poisson} $\{N(t)\}_{t \geq 0}$ con tasa $\lambda > 0$
+satisface:
+\begin{enumerate}
+  \item $N(0) = 0$.
+  \item Incrementos independientes y estacionarios.
+  \item $P(N(t) = k) = \dfrac{(\lambda t)^k e^{-\lambda t}}{k!}$,\quad
+    $E[N(t)] = \lambda t$,\quad $\mathrm{Var}[N(t)] = \lambda t$.
+\end{enumerate}
+\end{definition}
+
+\begin{proposition}[Ley condicional]
+  Para $0 < s < t$:\quad $N(s)\,|\,N(t)=n \;\sim\; \mathrm{Binomial}(n,\, s/t)$.
+\end{proposition}
+
+\subsection*{Ejercicio 1.1 --- Llegadas de \'ordenes en una mesa de FX
+  ($\lambda = 10$ \'ord/hora)}
+
+\begin{enumerate}[label=(\alph*)]
+  \item $P(N(0.5)=0) = e^{-10 \times 0.5} = e^{-5} \approx 0.0067$.
+
+    \textit{Implicaci\'on:} periodos de iliquidez donde el riesgo de inventario
+    aumenta.
+
+  \item Por independencia de incrementos en intervalos disjuntos:
+    \[
+      P(N_{10:30\text{-}11}=3)\cdot P(N_{11:30\text{-}12}=7)
+      = \frac{e^{-5}5^3}{3!}\cdot\frac{e^{-5}5^7}{7!} \approx 0.0146
+    \]
+
+  \item $E[N(8)] = 80$,\quad $\mathrm{SD} = \sqrt{80} \approx 8.94$.
+
+    No es prudente dimensionar solo con la media por la alta volatilidad del
+    flujo.
+
+  \item $\mathrm{SD}(N(T)) = \sqrt{\lambda T} \propto \sqrt{T}$, relacionado
+    con la \textbf{regla de la ra\'iz del tiempo} del VaR:
+    $\mathrm{VaR}_{10d} \approx \sqrt{10}\,\mathrm{VaR}_{1d}$.
+\end{enumerate}
+
+\subsection*{Ejercicio 1.4 --- Ley condicional}
+
+\[
+  N(s)\,|\,N(t)=n \;\sim\; \mathrm{Binomial}\!\left(n,\,\frac{s}{t}\right)
+\]
+\[
+  E[N(s)\,|\,N(t)=n] = n\frac{s}{t}, \qquad
+  \mathrm{Var}[N(s)\,|\,N(t)=n] = n\frac{s}{t}\left(1-\frac{s}{t}\right)
+\]
+
+\subsection*{Ejercicio 1.8 --- Poisson Compuesto (Cram\'er-Lundberg)}
+
+$E[X(t)] = \lambda t\,E[Y]$,\quad $\mathrm{Var}[X(t)] = \lambda t\,E[Y^2]$.
+
+Con $\lambda=3$ siniestros/mes y $E[Y]=10{,}000$ MXN:
+\[
+  E[X(12)] = 3 \times 12 \times 10{,}000 = 360{,}000 \text{ MXN}
+\]
+
+\section{Cadenas de Markov}
+
+\begin{definition}
+  Una \textbf{cadena de Markov} satisface
+  $P(X_{n+1}=j\,|\,X_n=i_n,\ldots,X_0=i_0) = p_{ij}$.
+  La \textbf{distribuci\'on estacionaria} $\pi$ cumple $\pi P = \pi$,
+  $\sum_i \pi_i = 1$.
+\end{definition}
+
+\subsection*{Ejercicio 2.1 --- Clasificaci\'on y distribuci\'on estacionaria}
+
+Para una matriz de transici\'on $P$ con estados $\{1,2,3\}$ (ratings crediticios),
+se resuelve $\pi P = \pi$ para obtener la distribuci\'on de largo plazo.
+
+\subsection*{Ejercicio 2.4 --- Absorci\'on y riesgo crediticio}
+
+Se resuelve $u_i = \sum_j p_{ij} u_j$ para calcular la probabilidad de absorci\'on
+en el estado de default ($R_2$) o solvencia ($R_1$).
+
+\subsection*{Ejercicio 2.6 --- Rating con Default (estado absorbente)}
+
+$P^3(1,4)$ da la probabilidad de default a 3 a\~nos para un emisor con rating
+inicial AAA.
+
+\section{Martingalas Discretas}
+
+\begin{definition}
+  Una sucesi\'on $\{M_n\}$ es \textbf{martingala} respecto a $\{\mathcal{F}_n\}$ si
+  $M_n$ es $\mathcal{F}_n$-medible, $E[|M_n|]<\infty$ y
+  $E[M_{n+1}\,|\,\mathcal{F}_n] = M_n$ c.s.
+\end{definition}
+
+\subsection*{Ejercicio 3.1 --- Modelo CRR}
+
+Bajo la medida de riesgo neutro:
+\[
+  q = \frac{1+r-d}{u-d}
+\]
+El precio descontado $\tilde{S}_n = S_n/(1+r)^n$ es martingala bajo
+$\mathbb{Q}$, garantizando la ausencia de arbitraje.
+
+\subsection*{Ejercicio 3.3 --- Desigualdad de Doob}
+
+\[
+  P\!\left(M^* \geq \lambda\right) \leq \frac{E[M_N]}{\lambda}
+\]
+
+usando $\tau = \min\{k : M_k \geq \lambda\}$.
+
+\subsection*{Ejercicio 3.5 --- Criterio de Kelly}
+
+Se maximiza $G(f) = E[\log(W_n/W_0)]$. La soluci\'on $f^*$ optimiza el crecimiento
+de largo plazo. Sobreinvertir ($f > f_{\max}$) lleva a $W_n \to 0$ c.s.
+
+\subsection*{Ejercicio 3.8 --- FTAP y Valuaci\'on}
+
+\begin{itemize}
+  \item \textbf{Primer Teorema Fundamental:} no hay arbitraje $\iff$ existe una
+    medida de martingala equivalente (EMM).
+  \item \textbf{Segundo Teorema:} completitud del mercado $\iff$ unicidad de la
+    EMM.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\part{Proyecto Final: Factores y Estilos de Inversi\'on --- AAPL 2019--2024}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\section{Introducci\'on y Pregunta Central}
+
+\begin{quote}
+  \textit{\'Puede describirse el comportamiento de AAPL mediante exposiciones a
+  estilos o factores emp\'iricos?}
+\end{quote}
+
+\section{Marco Te\'orico}
+
+\subsection{CAPM}
+
+\begin{equation}
+  E(R_i) = R_f + \beta_i\,[E(R_m) - R_f]
+\end{equation}
+
+$\alpha$ captura el retorno no explicado; en equilibrio deber\'ia ser cero.
+
+\subsection{Modelo Fama-French 3 Factores (FF3)}
+
+\begin{equation}
+  R_i - R_f = \alpha + b_1(\text{Mkt-RF}) + b_2\,\text{SMB}
+    + b_3\,\text{HML} + \varepsilon_i
+\end{equation}
+
+\begin{itemize}
+  \item \textbf{SMB} (Small Minus Big): prima de tama\~no.
+  \item \textbf{HML} (High Minus Low): prima de valor. Carga negativa
+    $\Rightarrow$ perfil \textit{growth}.
+\end{itemize}
+
+\section{Datos}
+
+\begin{itemize}
+  \item Activo: AAPL (NASDAQ), febrero 2019 -- diciembre 2024,
+    \textbf{71 observaciones mensuales}.
+  \item Factores FF3 y $R_f$: Kenneth French Data Library.
+  \item Estimaci\'on: OLS con errores robustos HC3 (White, 1980).
+\end{itemize}
+
+\section{Estad\'isticas Descriptivas}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Variable & Media (\%) & Desv.\ Est. & M\'in.\ (\%) & M\'ax.\ (\%) & Sharpe \\
+\midrule
+AAPL   &  2.210 & 8.398 & $-14.71$ & 21.35 & 0.263 \\
+Mkt-RF &  1.464 & 5.230 & $-13.37$ & 13.66 & 0.280 \\
+SMB    & $-0.291$ & 2.721 & $-7.10$ & 7.47 & --- \\
+HML    &  0.075 & 3.836 & $-9.89$  & 9.81 & --- \\
+RF     &  0.202 & 0.175 & 0.01    & 0.47 & --- \\
+\bottomrule
+\end{tabular}
+\caption{Estad\'isticas descriptivas -- retornos mensuales (\%).}
+\end{table}
+
+\section{Resultados}
+
+\subsection{CAPM}
+
+\begin{equation}
+  \widehat{\mathrm{AAPL}_{exc}} = 0.0003 + 1.4192\cdot(\text{Mkt-RF}) + \varepsilon
+  \qquad R^2 = 76.4\,\%
+\end{equation}
+
+$\beta = 1.4192$ ($p < 0.01$): por cada 1\,\% de retorno del mercado, AAPL
+rinde $\approx 1.42$\,\% adicional. $\alpha$ no significativo ($p = 0.953$).
+
+\subsection{Fama-French 3 Factores}
+
+\begin{equation}
+  \widehat{\mathrm{AAPL}_{exc}} = -0.0004 + 1.4594\,(\text{Mkt-RF})
+    - 0.0022\,\text{SMB} - 0.0029\,\text{HML} + \varepsilon
+  \qquad R^2 = 78.2\,\%
+\end{equation}
+
+\subsection{Comparaci\'on de Modelos}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+M\'etrica & CAPM & FF3 & $\Delta$ \\
+\midrule
+$R^2$ & 76.38\,\% & 78.15\,\% & +1.77 pp \\
+AIC   & $-450.40$ & $-457.10$ & FF3 mejor \\
+BIC   & $-445.88$ & $-448.05$ & FF3 mejor \\
+Test $F$ incremental & --- & $F=4.155$ & $p=0.0198$ \\
+\bottomrule
+\end{tabular}
+\caption{CAPM vs.\ Fama-French 3F.}
+\end{table}
+
+\section{Conclusiones del Proyecto}
+
+\begin{enumerate}
+  \item El comportamiento de AAPL se describe satisfactoriamente mediante
+    exposiciones a factores sistem\'aticos (FF3 explica el 78.2\,\% de la
+    varianza mensual).
+  \item Factor de mercado dominante: $b_1 \approx 1.46$, $p<0.01$.
+  \item Perfil factorial: \textbf{large-cap} ($b_2<0$), \textbf{growth}
+    ($b_3<0$), \textbf{alta beta} --- coherente con mega-capitalizaci\'on
+    tecnol\'ogica (\$3B USD).
+  \item FF3 mejora al CAPM en $R^2$, AIC y BIC; el test $F$ incremental
+    confirma la mejora ($p=0.020$).
+  \item $\alpha$ no significativo en ning\'un modelo $\Rightarrow$ consistente
+    con mercados eficientes.
+\end{enumerate}
+
+\section{C\'odigo del Proyecto}
+
+\begin{lstlisting}[style=python, caption={Proyecto Final -- CAPM y FF3 para AAPL}]
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+try:
+    import yfinance as yf
+except ImportError:
+    import os; os.system('pip install yfinance'); import yfinance as yf
+
+try:
+    from statsmodels.regression.linear_model import OLS
+    from statsmodels.tools import add_constant
+    import statsmodels.api as sm
+except ImportError:
+    import os; os.system('pip install statsmodels')
+    from statsmodels.regression.linear_model import OLS
+    from statsmodels.tools import add_constant
+    import statsmodels.api as sm
+
+try:
+    import pandas_datareader.data as web
+except ImportError:
+    import os; os.system('pip install pandas-datareader')
+    import pandas_datareader.data as web
+
+aapl = yf.download('AAPL', start='2019-02-01',
+                   end='2024-12-31', progress=False)
+if isinstance(aapl.columns, pd.MultiIndex):
+    aapl.columns = aapl.columns.droplevel(1)
+aapl_monthly = aapl['Close'].resample('ME').last()
+aapl_ret     = aapl_monthly.pct_change().dropna()
+aapl_ret.index = aapl_ret.index.to_period('M')
+
+ff3 = web.DataReader('F-F_Research_Data_Factors',
+                     'famafrench', start='2019-01', end='2024-12')[0] / 100
+ff3.index = ff3.index.to_period('M')
+
+df = pd.concat([aapl_ret.rename('AAPL'), ff3], axis=1).dropna()
+df['AAPL_exc'] = df['AAPL'] - df['RF']
+
+X_capm   = add_constant(df['Mkt-RF'])
+res_capm = OLS(df['AAPL_exc'], X_capm).fit(cov_type='HC3')
+print("=== CAPM ===")
+print(res_capm.summary2())
+
+X_ff3   = add_constant(df[['Mkt-RF','SMB','HML']])
+res_ff3 = OLS(df['AAPL_exc'], X_ff3).fit(cov_type='HC3')
+print("=== Fama-French 3F ===")
+print(res_ff3.summary2())
+
+print(f"R2 CAPM: {res_capm.rsquared:.4f} | R2 FF3: {res_ff3.rsquared:.4f}")
+print(f"AIC CAPM: {res_capm.aic:.2f}    | AIC FF3: {res_ff3.aic:.2f}")
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\part{20 Ejercicios Resueltos: Browniano e Integral de It\^o}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\section*{Ejercicio 1 --- Incrementos de Browniano}
+\addcontentsline{toc}{section}{Ejercicio 1 -- Incrementos de Browniano}
+
+Para $0 \leq s < t \leq u < v$, usando $K(a,b)=\min\{a,b\}$:
+
+\[
+  \mathrm{Cov}(B_t-B_s,\, B_v-B_u) = K(t,v)-K(t,u)-K(s,v)+K(s,u)
+  = t - t - s + s = 0
+\]
+
+Al ser gaussianos con covarianza nula $\Rightarrow$ independientes. $\blacksquare$
+
+\section*{Ejercicio 2 --- Ganancia de una estrategia discreta}
+\addcontentsline{toc}{section}{Ejercicio 2 -- Ganancia de una estrategia discreta}
+
+$H_0=1,\; H_1=2,\; H_2=-1$:
+
+\[
+  (H\cdot B)_T = 1\cdot(B_{t_1}-B_0) + 2\cdot(B_{t_2}-B_{t_1})
+    + (-1)\cdot(B_T-B_{t_2}) = -B_{t_1} + 3B_{t_2} - B_T
+\]
+
+Ganancia acumulada; $H_i$ se fija antes del siguiente incremento
+(no anticipaci\'on). $\blacksquare$
+
+\section*{Ejercicio 3 --- Isometr\'ia de It\^o}
+\addcontentsline{toc}{section}{Ejercicio 3 -- Isometria de Ito}
+
+$H_t = a\,\mathbf{1}_{(0,T/2]} + b\,\mathbf{1}_{(T/2,T]}$:
+
+\[
+  E\!\left[\!\left(\int_0^T H_t\,dB_t\right)^{\!2}\right]
+  = a^2\cdot\frac{T}{2} + b^2\cdot\frac{T}{2}
+  = E\!\left[\int_0^T H_t^2\,dt\right] \qquad \checkmark \qquad \blacksquare
+\]
+
+\section*{Ejercicio 4 --- Variaci\'on cuadr\'atica}
+\addcontentsline{toc}{section}{Ejercicio 4 -- Variacion cuadratica}
+
+Con partici\'on uniforme de $[0,T]$ con malla $T/n$:
+
+\[
+  E[V_n] = T, \quad
+  \mathrm{Var}[V_n] = \frac{2T^2}{n} \to 0
+  \quad \Rightarrow \quad V_n \xrightarrow{P} T = [B]_T \qquad \blacksquare
+\]
+
+\section*{Ejercicio 5 --- F\'ormula de It\^o para el logaritmo}
+\addcontentsline{toc}{section}{Ejercicio 5 -- Formula de Ito para el logaritmo}
+
+$f(x) = \log x$:
+
+\[
+  d(\log S_t) = \frac{dS_t}{S_t} + \frac{1}{2}\!\left(-\frac{1}{S_t^2}\right)
+    (\sigma S_t)^2\,dt
+  = \left(\mu - \frac{\sigma^2}{2}\right)dt + \sigma\,dB_t \qquad \blacksquare
+\]
+
+\section*{Ejercicio 6 --- Distribuci\'on bajo GBM}
+\addcontentsline{toc}{section}{Ejercicio 6 -- Distribucion bajo GBM}
+
+\[
+  \log\frac{S_t}{S_0} = \left(\mu-\frac{\sigma^2}{2}\right)t + \sigma B_t
+  \;\sim\; \mathcal{N}\!\!\left(\left(\mu-\frac{\sigma^2}{2}\right)t,\;\sigma^2 t\right)
+\]
+
+$S_t$ sigue distribuci\'on log-normal. El t\'ermino $-\sigma^2/2$ es la
+\textbf{correcci\'on de It\^o}. $\blacksquare$
+
+\section*{Ejercicio 7 --- Volatilidad realizada}
+\addcontentsline{toc}{section}{Ejercicio 7 -- Volatilidad realizada}
+
+\[
+  r_t = \log(S_t/S_{t-1}), \quad
+  s = \sqrt{\frac{1}{n-1}\sum(r_t-\bar{r})^2}, \quad
+  \sigma_{\text{anual}} = \sqrt{252}\cdot s \qquad \blacksquare
+\]
+
+\section*{Ejercicio 8 --- Valuaci\'on de una opci\'on europea}
+\addcontentsline{toc}{section}{Ejercicio 8 -- Valuacion de una opcion europea}
+
+\[
+  C_0 = e^{-rT}\,E^\mathbb{Q}[(S_T-K)^+]
+\]
+
+La delta $\Delta_t = \partial V/\partial S$ es la cobertura. $\blacksquare$
+
+\section*{Ejercicio 9 --- Put americana vs.\ put europea}
+\addcontentsline{toc}{section}{Ejercicio 9 -- Put americana vs put europea}
+
+\[
+  V^{Am}(t,s) = \sup_{\tau\in\mathcal{T}_{t,T}}
+    E^\mathbb{Q}[e^{-r(\tau-t)}g(S_\tau)\,|\,S_t=s]
+  \;\geq\; V^{Eu}(t,s) \qquad \blacksquare
+\]
+
+\section*{Ejercicio 10 --- Opci\'on parisina: estado ampliado}
+\addcontentsline{toc}{section}{Ejercicio 10 -- Opcion parisina: estado ampliado}
+
+El precio requiere $V = V(t, S_t, C_t)$. Sin $C_t$, dos estados
+financieramente distintos ser\'ian indistinguibles. $\blacksquare$
+
+\section*{Ejercicio 11 --- Martingala $M_t = B_t^2 - t$}
+\addcontentsline{toc}{section}{Ejercicio 11 -- Martingala Mt = Bt2 - t}
+
+\[
+  E[M_t\,|\,\mathcal{F}_s] = B_s^2 + (t-s) - t = B_s^2 - s = M_s
+  \quad\checkmark \qquad \blacksquare
+\]
+
+\section*{Ejercicio 12 --- Martingala exponencial}
+\addcontentsline{toc}{section}{Ejercicio 12 -- Martingala exponencial}
+
+$Z_t = e^{\theta B_t - \theta^2 t/2}$:
+
+\[
+  E[Z_t\,|\,\mathcal{F}_s]
+  = Z_s \cdot e^{\theta^2(t-s)/2} \cdot e^{-\theta^2(t-s)/2}
+  = Z_s \quad\checkmark \qquad \blacksquare
+\]
+
+$Z_T = dQ/dP$ es la densidad de Radon-Nikodym (Teorema de Girsanov).
+
+\section*{Ejercicio 13 --- Precio de mercado del riesgo}
+\addcontentsline{toc}{section}{Ejercicio 13 -- Precio de mercado del riesgo}
+
+\[
+  \lambda = \frac{\mu - r}{\sigma}
+\]
+
+Con $B_t^\mathbb{Q} = B_t^\mathbb{P} + \lambda t$, el drift pasa de $\mu$ a
+$r$ bajo $\mathbb{Q}$. $\blacksquare$
+
+\section*{Ejercicio 14 --- Precio descontado como martingala}
+\addcontentsline{toc}{section}{Ejercicio 14 -- Precio descontado como martingala}
+
+\[
+  d(e^{-rt}S_t) = \sigma\,S_t^*\,dB_t^\mathbb{Q}
+\]
+
+Solo t\'ermino de difusi\'on $\Rightarrow$ drift nulo $\Rightarrow$
+\textbf{martingala bajo $\mathbb{Q}$}. $\blacksquare$
+
+\section*{Ejercicio 15 --- Paridad put--call}
+\addcontentsline{toc}{section}{Ejercicio 15 -- Paridad put-call}
+
+\[
+  \boxed{C_0 - P_0 = S_0 - Ke^{-rT}} \qquad \blacksquare
+\]
+
+\section*{Ejercicio 16 --- Delta y Gamma}
+\addcontentsline{toc}{section}{Ejercicio 16 -- Delta y Gamma}
+
+\[
+  \Delta V \approx \Delta\cdot\Delta S + \tfrac{1}{2}\Gamma(\Delta S)^2
+    + \Theta\,\Delta t
+\]
+
+$\Delta = \partial V/\partial S$: cobertura lineal.
+$\Gamma = \partial^2 V/\partial S^2$: curvatura; $\Gamma>0$ beneficia de la
+volatilidad. $\blacksquare$
+
+\section*{Ejercicio 17 --- PDE de Black--Scholes}
+\addcontentsline{toc}{section}{Ejercicio 17 -- PDE de Black-Scholes}
+
+\begin{equation}
+  \boxed{V_t + \frac{1}{2}\sigma^2 S^2 V_{SS} + rS\,V_S - rV = 0,
+    \quad V(T,S) = h(S)} \qquad \blacksquare
+\end{equation}
+
+\section*{Ejercicio 18 --- Frontera de ejercicio en put americana}
+\addcontentsline{toc}{section}{Ejercicio 18 -- Frontera de ejercicio en put americana}
+
+Condiciones de \textit{smooth pasting} en $S^*(t)$:
+
+\[
+  V(t, S^*(t)) = K - S^*(t), \qquad
+  \frac{\partial V}{\partial S}(t, S^*(t)) = -1
+\]
+
+$S^*(t)$ decreciente; $S^*(T) = K$. $\blacksquare$
+
+\section*{Ejercicio 19 --- Sensibilidad de opci\'on parisina down-and-out}
+\addcontentsline{toc}{section}{Ejercicio 19 -- Sensibilidad de opcion parisina}
+
+\begin{itemize}
+  \item $H\uparrow$: mayor prob.\ de knock-out $\Rightarrow$ \textbf{precio baja}.
+  \item $D\uparrow$: menor prob.\ de desactivaci\'on $\Rightarrow$ \textbf{precio sube}.
+\end{itemize}
+Se invierte para knock-in. $\blacksquare$
+
+\section*{Ejercicio 20 --- Volatilidad hist\'orica vs.\ impl\'icita}
+\addcontentsline{toc}{section}{Ejercicio 20 -- Volatilidad historica vs implicita}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & Volatilidad hist\'orica & Volatilidad impl\'icita \\
+\midrule
+Direcci\'on  & Backward-looking & Forward-looking \\
+Estimaci\'on & $\sqrt{252}\cdot\mathrm{std}\{r_t\}$
+             & Se despeja de $C_{\text{mercado}} = BS(\sigma)$ \\
+\bottomrule
+\end{tabular}
+\caption{Volatilidad hist\'orica vs.\ impl\'icita.}
+\end{table}
+
+Su diferencia es la \textbf{variance risk premium}. $\blacksquare$
+
+% ══════════════════════════════════════════════════════════════════════════════
+\part*{Bibliograf\'ia}
+\addcontentsline{toc}{part}{Bibliografia}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\begin{enumerate}
+  \item Fama, E.F.\ \& French, K.R.\ (1993). Common risk factors in the returns
+    on stocks and bonds. \textit{Journal of Financial Economics}, 33(1), 3--56.
+  \item Longstaff, F.A.\ \& Schwartz, E.S.\ (2001). Valuing American options by
+    simulation. \textit{Review of Financial Studies}, 14(1), 113--147.
+  \item Shreve, S.E.\ (2004). \textit{Stochastic Calculus for Finance II}.
+    Springer.
+  \item Sharpe, W.F.\ (1964). Capital asset prices. \textit{Journal of Finance},
+    19(3), 425--442.
+  \item White, H.\ (1980). A heteroskedasticity-consistent covariance matrix
+    estimator. \textit{Econometrica}, 48(4), 817--838.
+\end{enumerate}
+
+\end{document}
